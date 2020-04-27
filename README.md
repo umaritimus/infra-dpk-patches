@@ -67,4 +67,4 @@ peopletools_patches:
   30906478_3: "//dfs/patches/30906478 - PT 8.58.03 PRODUCT PATCH DPK/PEOPLETOOLS-WIN-8.58.03_4of4.zip"
 ```
 
-> _Note:_ `jdk_patches`, `tuxedo_patches`, `weblogic_patches` and `peopletools_patches` are the sections that dpk refers to internally.  `psft_patches` section is only relevant if you are using psft_patches.yaml as a driver for downloading the patches.  The patch numbers, e.g. `18143322` are irrelevant, but the location and order of the patches are very important.
+> _Note:_ `jdk_patches`, `tuxedo_patches`, `weblogic_patches` and `peopletools_patches` are the sections that dpk refers to internally (`peopletools_patches` section is only relevant if you are using psft_patches.yaml as a driver for autodownloading the patches. hint: you should do that).  The patch numbers, e.g. `18143322` are irrelevant, but the location and order of the patches are very important.
