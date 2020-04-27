@@ -1,0 +1,59 @@
+diff --git a/modules/pt_deploy/lib/puppet/provider/pt_deploy_tuxedo/deploy_tuxedo.rb b/modules/pt_deploy/lib/puppet/provider/pt_deploy_tuxedo/deploy_tuxedo.rb
+index db6761f..94a1bc8 100644
+--- a/modules/pt_deploy/lib/puppet/provider/pt_deploy_tuxedo/deploy_tuxedo.rb
++++ b/modules/pt_deploy/lib/puppet/provider/pt_deploy_tuxedo/deploy_tuxedo.rb
+@@ -161,9 +161,10 @@ Puppet::Type.type(:pt_deploy_tuxedo).provide :deploy_tuxedo,
+ 
+         if Facter.value(:osfamily) == 'windows'
+           Puppet.debug("Extracting Tuxedo patch on Windows platform")
+-
+-          extract_zip_script = generate_windows_unzip_script(patch, tuxedo_patch_dir)
+-          system("powershell -File #{extract_zip_script}")
++          # <umaritimus patch>
++          extract_zip_command = "Expand-Archive -Path '#{patch}' -DestinationPath '#{tuxedo_patch_dir}\' -Force"
++          system("powershell -Command #{extract_zip_command}")
++          # </umaritimus patch>
+           if $? == 0
+             Puppet.debug("Extraction of Tuxedo patch #{patch} successful")
+           else
+@@ -216,22 +217,24 @@ Puppet::Type.type(:pt_deploy_tuxedo).provide :deploy_tuxedo,
+           tuxedo_opatch_cmd = "#{tuxedo_home}\\OPatch\\opatch.bat"
+ 
+           tuxedo_patch_dir = tuxedo_patch_dir.gsub('/', '\\')
+-          patch_response_file = "#{tuxedo_patch_dir}\\opatch.rsp"
+-
+-          target = open(patch_response_file, 'w')
+-          target.puts("joe@foo.com")
+-          target.puts("")
+-          target.puts("")
+-          target.puts("")
+-          target.close()
+-          File.chmod(0755, patch_response_file)
+-
+-          patch_apply_cmd = "cd #{tuxedo_patch_dir} && #{tuxedo_opatch_cmd} apply #{tuxedo_patch_num} < #{patch_response_file}"
+-          system(patch_apply_cmd)
+-          if $? == 0
+-            Puppet.debug("Tuxedo Patch #{tuxedo_patch_num} install successful")
+-          else
+-            Puppet.debug("Tuxedo Patch #{tuxedo_patch_num} install failed")
++          # <umaritimus patch>
++          patch_apply_cmd = "cd /D #{tuxedo_patch_dir} && #{tuxedo_opatch_cmd} apply #{tuxedo_patch_num} -silent -force > nul"
++
++          begin
++            Puppet.debug("Tuxedo patch apply command #{patch_apply_cmd}")
++            system(patch_apply_cmd)
++            if $? == 0
++              Puppet.debug("Tuxedo Patch \"#{tuxedo_patch_num}\" install successful")
++            else
++              raise Puppet::ExecutionFailure, "Tuxedo patch installation failed: \"#{patch}\" failed"
++            end
++          rescue Puppet::ExecutionFailure => e
++            Puppet.debug("Tuxedo patch installation failed: #{e.message}")
++            raise Puppet::Error, "Installation of tuxedo patch \"#{patch}\" failed: #{e.message}"
++          ensure
++            FileUtils.remove_entry(tuxedo_patch_dir)
++            Puppet.debug("Deleted Tuxedo patch installation directory \"#{tuxedo_patch_dir}\"")
++          # </umaritimus patch>
+           end
+           # start the services
+           Puppet.debug("Starting Tuxedo ProcManager service [#{tuxedo_procmgr_service}]")

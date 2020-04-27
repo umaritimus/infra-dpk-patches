@@ -1,0 +1,58 @@
+diff --git a/modules/pt_deploy/lib/puppet/provider/pt_deploy_jdk/deploy_jdk.rb b/modules/pt_deploy/lib/puppet/provider/pt_deploy_jdk/deploy_jdk.rb
+index bc4b89a..57bd7ea 100644
+--- a/modules/pt_deploy/lib/puppet/provider/pt_deploy_jdk/deploy_jdk.rb
++++ b/modules/pt_deploy/lib/puppet/provider/pt_deploy_jdk/deploy_jdk.rb
+@@ -71,6 +71,53 @@ Puppet::Type.type(:pt_deploy_jdk).provide :deploy_jdk,
+       rescue
+         raise Puppet::ExecutionFailure, "Failed to access environment key in the registry"
+       end
++
++      # <umaritimus patch>
++      # install jdk patches if specified
++      deploy_parent_location = File.dirname(deploy_location)
++      patch_list = resource[:patch_list]
++      if ! patch_list.nil?
++        patch_list = [patch_list] unless patch_list.is_a? Array
++        patch_list.each do |patch|
++          begin
++            Puppet.debug("Extracting JDK patch \"#{patch}\"")
++            jdk_patch_dir = Dir.mktmpdir(['jdkpatch', 'dir'], deploy_parent_location)
++            FileUtils.chmod(0755, jdk_patch_dir)
++            Puppet.debug("Readying JDK patch directory \"#{jdk_patch_dir}\"")
++            system("cd /D #{jdk_patch_dir} && #{deploy_location}\\bin\\jar -xf \"#{patch}\"")
++            if $? == 0
++              Puppet.debug("Extraction of JDK patch \"#{patch}\" successful")
++            else
++              raise Puppet::ExecutionFailure, "Extraction of JDK patch \"#{patch}\" failed"
++            end
++
++            Puppet.debug("Installing JDK patch \"#{patch}\"")
++            Dir.glob("#{jdk_patch_dir}/jdk-*-windows-x64*exe").select { |filename|
++              Puppet.debug("JDK patch executable = #{filename}")
++              patch_apply_cmd = "cd /D \"#{jdk_patch_dir.gsub('/', '\\')}\" && \"#{filename.gsub('/', '\\')}\" /s ADDLOCAL=\"ToolsFeature\" INSTALLDIR=\"#{deploy_location.gsub('/', '\\')}\" STATIC=1 WEB_JAVA=0 WEB_JAVA_SECURITY_LEVEL=VH SPONSORS=0 NOSTARTMENU=1 REBOOT=0 WEB_ANALYTICS=0 AUTO_UPDATE=0"
++              Puppet.debug("JDK patch apply command: #{patch_apply_cmd}")
++              command = Thread.new do
++                system("#{patch_apply_cmd}")
++              end
++              command.join
++            }
++            Puppet.debug("Done installing JDK patch \"#{patch}\"")
++
++          rescue Puppet::ExecutionFailure => e
++            Puppet.debug("JDK patch installation failed: #{e.message}")
++            raise Puppet::Error, "Installation of JDK patch \"#{patch}\" failed: #{e.message}"
++          ensure
++            if Facter.value(:osfamily) == 'windows'
++              remove_cmd = "cd /D \"#{deploy_location}\" && md empty && robocopy empty \"#{jdk_patch_dir}\" /E /PURGE /NOCOPY /MOVE /NFL /NDL /NJH /NJS > nul"
++              system(remove_cmd)
++            end
++            FileUtils.remove_entry(jdk_patch_dir)
++            Puppet.debug("Deleted JDK patch installation directory \"#{jdk_patch_dir}\"")
++          end
++        end
++      end
++      # </umaritimus patch>
++
+     end
+   end
+ 

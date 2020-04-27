@@ -1,0 +1,66 @@
+diff --git a/modules/pt_deploy/lib/puppet/provider/pt_deploy_weblogic/deploy_weblogic.rb b/modules/pt_deploy/lib/puppet/provider/pt_deploy_weblogic/deploy_weblogic.rb
+index c211375..4d5ca21 100644
+--- a/modules/pt_deploy/lib/puppet/provider/pt_deploy_weblogic/deploy_weblogic.rb
++++ b/modules/pt_deploy/lib/puppet/provider/pt_deploy_weblogic/deploy_weblogic.rb
+@@ -205,6 +205,15 @@ Puppet::Type.type(:pt_deploy_weblogic).provide :deploy_weblogic,
+ 
+         if Facter.value(:osfamily) == 'windows'
+           Puppet.debug("Extracting WebLogic patch on Windows platform")
++          # <umaritimus patch>
++          ENV['JAVA_HOME'] = jdk_location
++          system("cd /D \"#{weblogic_patch_dir}\" && #{jdk_location}\\bin\\jar -xf \"#{patch}\"")
++          if $? == 0
++            Puppet.debug("Extraction of WebLogic patch \"#{patch}\" successful")
++          else
++            raise Puppet::ExecutionFailure, "Extraction of WebLogic patch \"#{patch}\" failed"
++          end
++          # </umaritimus patch>
+         else
+           Puppet.debug("Extracting WebLogic patch on Non Windows platform")
+           if Facter.value(:osfamily) == 'AIX' or Facter.value(:osfamily) == 'HP-UX'
+@@ -232,11 +241,45 @@ Puppet::Type.type(:pt_deploy_weblogic).provide :deploy_weblogic,
+             Puppet.debug("Weblogic patch apply command #{patch_apply_cmd}")
+             Puppet::Util::Execution.execute(patch_apply_cmd, :failonfail => true)
+             Puppet.debug('Weblogic patch installation successfully')
++          # <umaritimus patch>
++          else
++            Puppet.debug("Installing WebLogic patch #{patch}")
++            ENV['ORACLE_HOME'] = deploy_location
++            Puppet.debug('Oracle Home environment variable' + ENV['ORACLE_HOME'])
++            # get the patch number
++            weblogic_patch_num = Dir.entries(weblogic_patch_dir).reject {|f| f.include?('.')}[0]
++            Puppet.debug('Installing WebLogic patch number ' + weblogic_patch_num)
++            patch_dir = "#{weblogic_patch_dir}/#{weblogic_patch_num}"
++            opatch = Dir.glob("#{patch_dir}/**/opatch*.jar")
++            if opatch.empty?
++              Puppet.debug("Installing Weblogic patch \"#{weblogic_patch_num}\" from  \"#{patch_dir}\"")
++              patch_apply_cmd = "#{deploy_location}\\OPatch\\opatch " + \
++                "apply -oh #{deploy_location} -silent -jdk #{jdk_location} -oop"
++            else
++              Puppet.debug("Installing OPatch patch #{weblogic_patch_num} from  #{patch_dir}")
++              patch_apply_cmd = "#{jdk_location}\\bin\\java -jar #{patch_dir}\\opatch_generic.jar -silent oracle_home=#{deploy_location}"
++            end
++
++            patch_apply_cmd = patch_apply_cmd.gsub('/', '\\')
++            weblogic_patch_dir = weblogic_patch_dir.gsub('/', '\\')
++            Puppet.debug("Weblogic patch apply command #{patch_apply_cmd}")
++            system("cd /D #{patch_dir} && #{patch_apply_cmd}")
++            if $? != 0
++              raise Puppet::ExecutionFailure, "Weblogic patch installation failed: #{patch} failed"
++            end
++            Puppet.debug('Weblogic patch installation completed successfully')
++          # </umaritimus patch>
+           end
+         rescue Puppet::ExecutionFailure => e
+           Puppet.debug("Weblogic patch installation failed: #{e.message}")
+           raise Puppet::Error, "Installation of weblogic patch #{patch} failed: #{e.message}"
+         ensure
++          # <umaritimus patch>
++          if Facter.value(:osfamily) == 'windows'
++            remove_cmd = "cd /D \"#{deploy_location}\" && md empty && robocopy empty #{weblogic_patch_dir} /E /PURGE /NOCOPY /MOVE /NFL /NDL /NJH /NJS > null"
++            system(remove_cmd)
++          end
++          # </umaritimus patch>
+           FileUtils.remove_entry(weblogic_patch_dir)
+         end
+       end
