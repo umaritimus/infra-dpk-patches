@@ -1,6 +1,8 @@
 # infra-dpk-patches
 Custom implmenentation of INFRA-DPK
 
+> Note:  This is specific to PeopleTools 8.58, but could be adopted for other releases
+
 ## Motivation
 
 Since Oracle is delivering INFRA-DPK extra late, I am publishing a set of my patches to supplement the patching logic misdelivered in PeopleTools DPK for Native Windows installations.
